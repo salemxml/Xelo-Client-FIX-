@@ -36,12 +36,25 @@ class GamePackageManager private constructor(private val context: Context, priva
         "libminecraftpe.so",
     )
 
-    private val systemLoadedLibs = arrayOf(
+    private val optionalLibs = arrayOf(
         "libpairipcore.so",
         "libPlayFabMultiplayer.so",
         "libmaesdk.so",
         "libmtbinloader2.so",
     )
+
+    private val allExtractLibs: Array<String>
+        get() = arrayOf(
+            "libc++_shared.so",
+            "libfmod.so",
+            "libMediaDecoders_Android.so",
+            "libHttpClient.Android.so",
+            "libpairipcore.so",
+            "libPlayFabMultiplayer.so",
+            "libmaesdk.so",
+            "libmtbinloader2.so",
+            "libminecraftpe.so",
+        )
 
     init {
         val packageName = detectGamePackage() ?: throw IllegalStateException("Minecraft not found")
@@ -144,7 +157,7 @@ class GamePackageManager private constructor(private val context: Context, priva
             return
         }
 
-        requiredLibs.forEach { lib ->
+        allExtractLibs.forEach { lib ->
             val srcFile = File(source, lib)
             val dstFile = File(destDir, lib)
             if (srcFile.exists() && srcFile.length() > 0) {
@@ -156,8 +169,6 @@ class GamePackageManager private constructor(private val context: Context, priva
                 } catch (e: Exception) {
                     logFileOperation("Failed to copy", lib, e = e)
                 }
-            } else {
-                Log.w(TAG, "Library $lib not found in $sourceDir")
             }
         }
     }
@@ -168,14 +179,15 @@ class GamePackageManager private constructor(private val context: Context, priva
             Log.w(TAG, "APK file does not exist: $apkPath")
             return
         }
-        if (!apkPath.contains("arm") && !apkPath.contains("x86") && !apkPath.contains("base.apk")) {
+        if (!apkPath.contains("arm") && !apkPath.contains("x86")
+            && !apkPath.contains("base.apk") && !apkPath.contains("split")) {
             return
         }
 
         try {
             ZipFile(apkPath).use { zip ->
                 val abiPath = "lib/$abi"
-                requiredLibs.forEach { lib ->
+                allExtractLibs.forEach { lib ->
                     val entry = zip.getEntry("$abiPath/$lib")
                     if (entry == null) {
                         return@forEach
@@ -191,6 +203,7 @@ class GamePackageManager private constructor(private val context: Context, priva
                     }
                     output.setReadable(true)
                     output.setExecutable(true)
+                    Log.d(TAG, "Extracted $lib from $apkPath ($abi)")
                 }
             }
         } catch (e: Exception) {
@@ -202,10 +215,16 @@ class GamePackageManager private constructor(private val context: Context, priva
         val missing = requiredLibs.filterNot {
             File(dir, it).let { f -> f.exists() && f.length() > 0 }
         }
+        val presentOptional = optionalLibs.filter {
+            File(dir, it).let { f -> f.exists() && f.length() > 0 }
+        }
         if (missing.isNotEmpty()) {
-            Log.w(TAG, "Missing libraries in $dir: ${missing.joinToString()}")
+            Log.w(TAG, "Missing required libraries in $dir: ${missing.joinToString()}")
         } else {
-            Log.i(TAG, "All libraries verified in $dir")
+            Log.i(TAG, "All required libraries verified in $dir")
+        }
+        if (presentOptional.isNotEmpty()) {
+            Log.i(TAG, "Optional libraries found: ${presentOptional.joinToString()}")
         }
     }
 
@@ -269,43 +288,37 @@ class GamePackageManager private constructor(private val context: Context, priva
 
     fun loadLibrary(name: String): Boolean {
         val libFile = File(nativeLibDir, if (name.startsWith("lib")) name else "lib$name.so")
-        val libName = libFile.name
-        return if (systemLoadedLibs.contains(libName)) {
-            try {
-                System.loadLibrary(name.removePrefix("lib").removeSuffix(".so"))
-                Log.d(TAG, "Loaded $name as system library")
+        return try {
+            if (libFile.exists() && libFile.length() > 0) {
+                System.load(libFile.absolutePath)
+                Log.d(TAG, "Loaded $name from $nativeLibDir")
                 true
-            } catch (t: Throwable) {
-                Log.e(TAG, "Failed to load system library $name: ${t.message}")
-                false
-            }
-        } else {
-            try {
-                if (libFile.exists() && libFile.length() > 0) {
-                    System.load(libFile.absolutePath)
-                    Log.d(TAG, "Loaded $name from $nativeLibDir")
+            } else {
+                try {
+                    val systemName = name.removePrefix("lib").removeSuffix(".so")
+                    System.loadLibrary(systemName)
+                    Log.d(TAG, "Loaded $name via system loader (not found in $nativeLibDir)")
                     true
-                } else {
-                    Log.w(TAG, "Library $name not found in $nativeLibDir, skipping")
+                } catch (t2: Throwable) {
+                    Log.w(TAG, "Library $name not found in $nativeLibDir and not in system path")
                     false
                 }
-            } catch (t: Throwable) {
-                Log.e(TAG, "Failed to load $name: ${t.message}")
-                false
             }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to load $name: ${t.message}")
+            false
         }
     }
 
     fun loadAllLibraries(excludeLibs: Set<String> = emptySet()) {
-        val allLibs = requiredLibs + systemLoadedLibs
-        allLibs.forEach { lib ->
+        allExtractLibs.forEach { lib ->
             val libName = lib.removePrefix("lib").removeSuffix(".so")
             if (excludeLibs.contains(libName) || excludeLibs.contains(lib)) {
                 Log.d(TAG, "Skipping excluded library: $libName")
                 return@forEach
             }
             if (!loadLibrary(libName)) {
-                Log.e(TAG, "Failed to load required library $libName")
+                Log.w(TAG, "Could not load library: $libName")
             }
         }
     }
