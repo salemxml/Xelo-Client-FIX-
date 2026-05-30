@@ -147,7 +147,7 @@ public abstract class BaseOverlayButton {
 
     private void showFallback(int startX, int startY) {
         if (isShowing) return;
-        ViewGroup rootView = activity.findViewById(android.R.id.content);
+        ViewGroup rootView = (ViewGroup) activity.getWindow().getDecorView();
         if (rootView == null) return;
 
         overlayView = LayoutInflater.from(activity).inflate(R.layout.overlay_mod_button, null);
@@ -183,7 +183,7 @@ public abstract class BaseOverlayButton {
             if (wmParams != null && windowManager != null) {
                 windowManager.removeView(overlayView);
             } else {
-                ViewGroup rootView = activity.findViewById(android.R.id.content);
+                ViewGroup rootView = (ViewGroup) activity.getWindow().getDecorView();
                 if (rootView != null) {
                     rootView.removeView(overlayView);
                 }

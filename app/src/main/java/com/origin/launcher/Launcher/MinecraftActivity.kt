@@ -17,6 +17,8 @@ class MinecraftActivity : MainActivity() {
 
     private lateinit var gameManager: GamePackageManager
     private var overlayManager: InbuiltOverlayManager? = null
+    private var overlaysStarted = false
+    private val overlayHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
@@ -87,10 +89,6 @@ class MinecraftActivity : MainActivity() {
     override fun onResume() {
         super.onResume()
         MinecraftActivityState.onResumed()
-
-        if (overlayManager == null) {
-            startInbuiltModServices()
-        }
     }
     
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -128,7 +126,16 @@ class MinecraftActivity : MainActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            overlayManager?.showEnabledOverlays()
+            if (!overlaysStarted) {
+                overlaysStarted = true
+                overlayHandler.postDelayed({
+                    if (!isFinishing && !isDestroyed) {
+                        startInbuiltModServices()
+                    }
+                }, 500)
+            } else {
+                overlayManager?.showEnabledOverlays()
+            }
         }
     }
 
@@ -138,6 +145,8 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun onDestroy() {
+        overlayHandler.removeCallbacksAndMessages(null)
+        overlaysStarted = false
         MinecraftActivityState.onDestroyed()
         stopInbuiltModServices()
         super.onDestroy()
