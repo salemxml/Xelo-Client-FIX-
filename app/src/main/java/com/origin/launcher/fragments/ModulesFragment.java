@@ -793,7 +793,6 @@ public class ModulesFragment extends BaseThemedFragment {
 
         // Apply theme colors to card (exactly like ThemesFragment)
         ThemeUtils.applyThemeToCard(moduleCard, requireContext());
-        moduleCard.setStrokeWidth((int) (1 * getResources().getDisplayMetrics().density));
 
         // Main container (EXACTLY matching ThemesFragment)
         LinearLayout mainLayout = new LinearLayout(requireContext());

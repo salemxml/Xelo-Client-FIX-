@@ -44,11 +44,12 @@ public class ThemeUtils {
         try {
             ThemeManager themeManager = ThemeManager.getInstance();
             
+            float density = context.getResources().getDisplayMetrics().density;
             if (themeManager != null && themeManager.isThemeLoaded()) {
                 card.setCardBackgroundColor(themeManager.getColor("surface"));
                 card.setStrokeColor(themeManager.getColor("outline"));
-                card.setStrokeWidth((int) (1 * context.getResources().getDisplayMetrics().density)); // 1dp stroke
-                card.setCardElevation(0f); // Remove elevation for flat design
+                card.setStrokeWidth((int) (1.5f * density));
+                card.setCardElevation(4 * density);
                 
                 // DO NOT override corner radius - preserve existing value
                 // card.setRadius(12 * context.getResources().getDisplayMetrics().density);
@@ -62,20 +63,21 @@ public class ThemeUtils {
                 card.setForeground(ripple);
             } else {
                 // Fallback to default colors if theme not ready
-                card.setCardBackgroundColor(Color.parseColor("#141414"));
+                card.setCardBackgroundColor(Color.parseColor("#1C1C1C"));
                 card.setStrokeColor(Color.parseColor("#505050"));
-                card.setStrokeWidth((int) (1 * context.getResources().getDisplayMetrics().density));
-                card.setCardElevation(0f);
+                card.setStrokeWidth((int) (1.5f * density));
+                card.setCardElevation(4 * density);
                 
                 // DO NOT override corner radius - preserve existing value
                 // card.setRadius(12 * context.getResources().getDisplayMetrics().density);
             }
         } catch (Exception e) {
             // Fallback to default colors on error
-            card.setCardBackgroundColor(Color.parseColor("#141414"));
+            float density = context.getResources().getDisplayMetrics().density;
+            card.setCardBackgroundColor(Color.parseColor("#1C1C1C"));
             card.setStrokeColor(Color.parseColor("#505050"));
-            card.setStrokeWidth((int) (1 * context.getResources().getDisplayMetrics().density));
-            card.setCardElevation(0f);
+            card.setStrokeWidth((int) (1.5f * density));
+            card.setCardElevation(4 * density);
             
             // DO NOT override corner radius - preserve existing value
             // card.setRadius(12 * context.getResources().getDisplayMetrics().density);
@@ -755,8 +757,9 @@ public static void applyThemeToBottomNavigation(View bottomNavView) {
                     });
                 
                 // Apply other properties immediately
-                card.setStrokeWidth((int) (1 * context.getResources().getDisplayMetrics().density));
-                card.setCardElevation(0f);
+                float density = context.getResources().getDisplayMetrics().density;
+                card.setStrokeWidth((int) (1.5f * density));
+                card.setCardElevation(4 * density);
                 
                 // Create ripple effect with theme colors
                 RippleDrawable ripple = new RippleDrawable(

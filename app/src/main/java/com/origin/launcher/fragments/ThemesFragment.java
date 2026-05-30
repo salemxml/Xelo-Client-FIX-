@@ -396,7 +396,6 @@ public class ThemesFragment extends BaseThemedFragment {
     
     // Apply theme colors to card
     ThemeUtils.applyThemeToCard(card, requireContext());
-    card.setStrokeWidth((int) (1 * getResources().getDisplayMetrics().density));
     
     // Main container
     LinearLayout mainLayout = new LinearLayout(requireContext());
