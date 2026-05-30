@@ -308,7 +308,10 @@ if (modManager.isModAdded(ModIds.HOTBAR_NINE)) {
         String[] allIds = {
             ModIds.MOD_MENU, ModIds.QUICK_DROP, ModIds.CAMERA_PERSPECTIVE, ModIds.TOGGLE_HUD,
             ModIds.AUTO_SPRINT, ModIds.ZOOM, ModIds.FPS_DISPLAY, ModIds.CPS_DISPLAY,
-            ModIds.THIRD_PERSON_NAMETAG, ModIds.HOTBAR_ONE,
+            ModIds.THIRD_PERSON_NAMETAG,
+            ModIds.HOTBAR_ONE, ModIds.HOTBAR_TWO, ModIds.HOTBAR_THREE, ModIds.HOTBAR_FOUR,
+            ModIds.HOTBAR_FIVE, ModIds.HOTBAR_SIX, ModIds.HOTBAR_SEVEN, ModIds.HOTBAR_EIGHT,
+            ModIds.HOTBAR_NINE,
         };
         for (String id : allIds) {
             modManager.addMod(id);

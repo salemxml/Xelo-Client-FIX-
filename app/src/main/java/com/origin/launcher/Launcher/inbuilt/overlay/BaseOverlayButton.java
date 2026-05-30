@@ -43,6 +43,7 @@ public abstract class BaseOverlayButton {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean isShowing = false;
+    private Runnable pendingShowRunnable = null;
 
     public BaseOverlayButton(Activity activity) {
         this.activity = activity;
@@ -67,7 +68,14 @@ public abstract class BaseOverlayButton {
 
     public void show(int startX, int startY) {
         if (isShowing) return;
-        handler.post(() -> showInternal(startX, startY));
+        if (pendingShowRunnable != null) {
+            handler.removeCallbacks(pendingShowRunnable);
+        }
+        pendingShowRunnable = () -> {
+            pendingShowRunnable = null;
+            showInternal(startX, startY);
+        };
+        handler.post(pendingShowRunnable);
     }
 
     // Applies themed pressed/unpressed bitmaps if available, otherwise falls back to the default selector drawable
@@ -151,6 +159,10 @@ public abstract class BaseOverlayButton {
     }
 
     public void hide() {
+        if (pendingShowRunnable != null) {
+            handler.removeCallbacks(pendingShowRunnable);
+            pendingShowRunnable = null;
+        }
         if (!isShowing || overlayView == null) return;
         try {
             if (wmParams != null && windowManager != null) {
