@@ -1,6 +1,8 @@
 package com.origin.launcher.Launcher.inbuilt.overlay;
 
 import android.app.Activity;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.MotionEvent;
 import android.view.KeyEvent;
 
@@ -28,6 +30,9 @@ public class InbuiltOverlayManager {
     private final InbuiltModManager modManager;
     private static final int SPACING = 70;
     private static final int START_X = 50;
+    private static final int DETACH_CHECK_INTERVAL = 60;
+    private int tickCount = 0;
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private QuickDropOverlay quickDropOverlay;
     private HotbarOneOverlay hotbarOneOverlay;
     private HotbarTwoOverlay   hotbarTwoOverlay;
@@ -270,6 +275,23 @@ if (modManager.isModAdded(ModIds.HOTBAR_NINE)) {
         for (Object overlay : overlays) {
             if (overlay instanceof BaseOverlayButton) {
                 ((BaseOverlayButton) overlay).tick();
+            }
+        }
+        tickCount++;
+        if (tickCount >= DETACH_CHECK_INTERVAL) {
+            tickCount = 0;
+            boolean needsRefresh = false;
+            for (Object overlay : new java.util.ArrayList<>(overlays)) {
+                if (overlay instanceof BaseOverlayButton) {
+                    BaseOverlayButton btn = (BaseOverlayButton) overlay;
+                    btn.resetIfDetached();
+                    if (!btn.isShowing()) {
+                        needsRefresh = true;
+                    }
+                }
+            }
+            if (needsRefresh && !overlays.isEmpty()) {
+                uiHandler.post(this::showEnabledOverlays);
             }
         }
     }

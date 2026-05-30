@@ -125,6 +125,13 @@ class MinecraftActivity : MainActivity() {
         return super.dispatchGenericMotionEvent(event)
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            overlayManager?.showEnabledOverlays()
+        }
+    }
+
     override fun onPause() {
         MinecraftActivityState.onPaused()
         super.onPause()

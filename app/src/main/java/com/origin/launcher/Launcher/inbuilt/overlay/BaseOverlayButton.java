@@ -45,6 +45,21 @@ public abstract class BaseOverlayButton {
     private boolean isShowing = false;
     private Runnable pendingShowRunnable = null;
 
+    public boolean isShowing() {
+        return isShowing;
+    }
+
+    public void resetIfDetached() {
+        if (isShowing && (overlayView == null || !overlayView.isAttachedToWindow())) {
+            if (pendingShowRunnable != null) {
+                handler.removeCallbacks(pendingShowRunnable);
+                pendingShowRunnable = null;
+            }
+            overlayView = null;
+            isShowing = false;
+        }
+    }
+
     public BaseOverlayButton(Activity activity) {
         this.activity = activity;
         this.windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
