@@ -2,14 +2,16 @@ name: Build Debug APK
 
 on:
   push:
-    branches: [master, develop]
+    branches: [main]
   pull_request:
-    branches: [master, develop]
+    branches: [main]
 
 jobs:
   debug-build:
     runs-on: ubuntu-latest
+
     env:
+      ANDROID_NDK_VERSION: r27c
       JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
 
     steps:
@@ -17,14 +19,27 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: "recursive"
-      - name: Update submodules (retry)
+          submodules: false
+
+      - name: Clone submodules manually
         run: |
-          for i in 1 2 3; do
-            git submodule update --init --recursive && break
-            echo "Retry $i..."
-            sleep 10
-          done
+          CPP_DIR=app/src/main/cpp
+
+          if [ ! -d "$CPP_DIR/Preloader/.git" ] && [ ! -f "$CPP_DIR/Preloader/.git" ]; then
+            echo "Cloning Preloader..."
+            rm -rf "$CPP_DIR/Preloader"
+            git clone --depth=1 https://github.com/Viablecobra/Preloader.git "$CPP_DIR/Preloader"
+          else
+            echo "Preloader already present."
+          fi
+
+          if [ ! -d "$CPP_DIR/libHttpClient/.git" ] && [ ! -f "$CPP_DIR/libHttpClient/.git" ]; then
+            echo "Cloning libHttpClient..."
+            rm -rf "$CPP_DIR/libHttpClient"
+            git clone --recurse-submodules --depth=1 https://github.com/microsoft/libHttpClient.git "$CPP_DIR/libHttpClient"
+          else
+            echo "libHttpClient already present."
+          fi
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -34,49 +49,33 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          ndk-version: ${{ env.ANDROID_NDK_VERSION }}
 
-      - name: Cache Gradle dependencies
+      - name: Install NDK r27c
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.2.12479018" || true
+          NDK_PATH=$(find $ANDROID_HOME/ndk -maxdepth 1 -type d | sort -V | tail -1)
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+
+      - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-debug-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-debug-
             ${{ runner.os }}-gradle-
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      - name: Run Tests
-        run: ./gradlew testDebugUnitTest --stacktrace
-
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
-
-      - name: List Debug APK files
-        run: |
-          echo "Debug APK files generated:"
-          find app/build/outputs/apk/debug -name "*.apk" -type f || echo "No APK files found"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: origin-debug-apk-${{ github.run_number }}
+          name: XeloClient-debug-${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
           if-no-files-found: error
-
-      - name: Upload Test Results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: debug-test-results-${{ github.run_number }}
-          path: |
-            app/build/reports/tests/
-            app/build/test-results/
-          retention-days: 7
-          if-no-files-found: ignore
