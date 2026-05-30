@@ -1,0 +1,132 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release-unsigned
+  push:
+    branches: [main]
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    env:
+      ANDROID_NDK_VERSION: r27c
+      JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Clone submodules
+        run: |
+          CPP_DIR=app/src/main/cpp
+
+          if [ ! -d "$CPP_DIR/Preloader/.git" ] && [ ! -f "$CPP_DIR/Preloader/.git" ]; then
+            echo "Cloning Preloader..."
+            rm -rf "$CPP_DIR/Preloader"
+            git clone --depth=1 https://github.com/Viablecobra/Preloader.git "$CPP_DIR/Preloader"
+          fi
+
+          if [ ! -d "$CPP_DIR/libHttpClient/.git" ] && [ ! -f "$CPP_DIR/libHttpClient/.git" ]; then
+            echo "Cloning libHttpClient..."
+            rm -rf "$CPP_DIR/libHttpClient"
+            git clone --recurse-submodules --depth=1 https://github.com/microsoft/libHttpClient.git "$CPP_DIR/libHttpClient"
+          fi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK r27c
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.2.12479018" || true
+          NDK_PATH=$(find $ANDROID_HOME/ndk -maxdepth 1 -type d | sort -V | tail -1)
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          echo "NDK: $NDK_PATH"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build Debug APK
+        if: github.event_name == 'push' || inputs.build_type == 'debug'
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Build Release (unsigned) APK
+        if: inputs.build_type == 'release-unsigned'
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Get version name
+        id: version
+        run: |
+          VER=$(grep versionName app/build.gradle | head -1 | grep -oP '"\K[^"]+')
+          echo "version=$VER" >> $GITHUB_OUTPUT
+
+      - name: Rename APK
+        run: |
+          TYPE="${{ inputs.build_type || 'debug' }}"
+          VER="${{ steps.version.outputs.version }}"
+          BUILD="${{ github.run_number }}"
+
+          if [ "$TYPE" = "release-unsigned" ]; then
+            APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+            [ -n "$APK" ] && mv "$APK" "app/build/outputs/apk/release/XeloClient-v${VER}-unsigned-#${BUILD}.apk" || true
+          else
+            APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
+            [ -n "$APK" ] && mv "$APK" "app/build/outputs/apk/debug/XeloClient-v${VER}-debug-#${BUILD}.apk" || true
+          fi
+
+      - name: Upload Debug APK
+        if: github.event_name == 'push' || inputs.build_type == 'debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: XeloClient-v${{ steps.version.outputs.version }}-debug-#${{ github.run_number }}
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload Release APK (unsigned)
+        if: inputs.build_type == 'release-unsigned'
+        uses: actions/upload-artifact@v4
+        with:
+          name: XeloClient-v${{ steps.version.outputs.version }}-unsigned-#${{ github.run_number }}
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build** | #${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Type** | ${{ inputs.build_type || 'debug' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
