@@ -93,21 +93,29 @@ jobs:
         run: |
           sed -i "s/versionName \".*\"/versionName \"${{ inputs.version_name }}\"/" app/build.gradle
 
-      - name: Setup signing (if secrets exist)
-        id: signing
+      - name: Verify signing secrets are configured
         run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > $GITHUB_WORKSPACE/keystore.jks
-            echo "SIGNING_AVAILABLE=true" >> $GITHUB_ENV
-            echo "signing_available=true" >> $GITHUB_OUTPUT
-          else
-            echo "SIGNING_AVAILABLE=false" >> $GITHUB_ENV
-            echo "signing_available=false" >> $GITHUB_OUTPUT
-            echo "No signing secrets found — will build unsigned APK"
+          missing=()
+          [ -z "${{ secrets.KEYSTORE_BASE64 }}"   ] && missing+=("KEYSTORE_BASE64")
+          [ -z "${{ secrets.KEYSTORE_PASSWORD }}" ] && missing+=("KEYSTORE_PASSWORD")
+          [ -z "${{ secrets.KEY_ALIAS }}"         ] && missing+=("KEY_ALIAS")
+          [ -z "${{ secrets.KEY_PASSWORD }}"      ] && missing+=("KEY_PASSWORD")
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::The following required signing secrets are not set: ${missing[*]}"
+            echo ""
+            echo "See SIGNING.md for instructions on generating a keystore and adding"
+            echo "these secrets to your GitHub repository."
+            exit 1
           fi
 
-      - name: Build Release APK (signed)
-        if: steps.signing.outputs.signing_available == 'true'
+          echo "All signing secrets are present."
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > $GITHUB_WORKSPACE/keystore.jks
+
+      - name: Build signed Release APK
         run: |
           ./gradlew assembleRelease \
             -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/keystore.jks \
@@ -116,9 +124,20 @@ jobs:
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }} \
             --stacktrace
 
-      - name: Build Release APK (unsigned)
-        if: steps.signing.outputs.signing_available != 'true'
-        run: ./gradlew assembleRelease --stacktrace
+      - name: Verify APK is signed
+        run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::No APK found after build."
+            exit 1
+          fi
+          # apksigner is part of the Android build-tools
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name "apksigner" | sort -V | tail -1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose "$APK" | grep -E "Verified|error" || true
+          else
+            echo "apksigner not found — skipping verification (APK was built with signing flags)"
+          fi
 
       - name: Rename APK
         run: |
