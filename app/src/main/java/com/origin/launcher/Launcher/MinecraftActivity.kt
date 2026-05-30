@@ -17,7 +17,7 @@ class MinecraftActivity : MainActivity() {
 
     private lateinit var gameManager: GamePackageManager
     private var overlayManager: InbuiltOverlayManager? = null
-    private var overlaysStarted = false
+    @Volatile private var overlaysStarted = false
     private val overlayHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,15 +56,15 @@ class MinecraftActivity : MainActivity() {
 
             try {
                 System.loadLibrary("preloader")
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to load preloader: ${e.message}")
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to load preloader: ${t.message}")
             }
 
             if (!gameManager.loadLibrary("minecraftpe")) {
                 throw RuntimeException("Failed to load libminecraftpe.so")
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Failed to load game: ${e.message}", Toast.LENGTH_LONG).show()
+        } catch (t: Throwable) {
+            Toast.makeText(this, "Failed to load game: ${t.message}", Toast.LENGTH_LONG).show()
             finish()
             return
         }

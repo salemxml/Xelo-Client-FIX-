@@ -83,7 +83,7 @@ public class MinecraftLauncher {
                     gameManager = GamePackageManager.Companion.getInstance(context.getApplicationContext(), version);
                     fillIntentWithMcPath(sourceIntent, version);
                     launchMinecraftActivity(sourceIntent, version, false);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     Log.e(TAG, "Launch failed: " + e.getMessage(), e);
                     activity.runOnUiThread(() -> {
                         dismissLoading();
@@ -91,7 +91,7 @@ public class MinecraftLauncher {
                     });
                 }
             }).start();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Log.e(TAG, "Launch failed: " + e.getMessage(), e);
             dismissLoading();
             showLaunchErrorOnUi("Launch failed: " + e.getMessage());
@@ -161,7 +161,7 @@ if (!shouldLoadPlayFab(version)) {
                     dismissLoading();
                     activity.startActivity(sourceIntent);
                 });
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 Log.e(TAG, "Failed to launch Minecraft activity: " + e.getMessage(), e);
                 activity.runOnUiThread(() -> {
                     dismissLoading();

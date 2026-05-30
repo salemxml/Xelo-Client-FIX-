@@ -275,8 +275,8 @@ class GamePackageManager private constructor(private val context: Context, priva
                 System.loadLibrary(name.removePrefix("lib").removeSuffix(".so"))
                 Log.d(TAG, "Loaded $name as system library")
                 true
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to load system library $name: ${e.message}")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to load system library $name: ${t.message}")
                 false
             }
         } else {
@@ -289,8 +289,8 @@ class GamePackageManager private constructor(private val context: Context, priva
                     Log.w(TAG, "Library $name not found in $nativeLibDir, skipping")
                     false
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to load $name: ${e.message}")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to load $name: ${t.message}")
                 false
             }
         }
@@ -333,8 +333,7 @@ class GamePackageManager private constructor(private val context: Context, priva
         @JvmStatic
         fun getInstance(context: Context, version: GameVersion? = null): GamePackageManager {
             return synchronized(this) {
-                instance = null // Reset instance to ensure fresh initialization
-                instance ?: GamePackageManager(context.applicationContext, version).also { instance = it }
+                GamePackageManager(context.applicationContext, version).also { instance = it }
             }
         }
 
