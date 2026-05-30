@@ -26,6 +26,7 @@ public class InbuiltModManager {
     private static final String KEY_ZOOM_KEYBIND = "zoom_keybind";
     private static final String KEY_ZOOM_HOLD_MODE = "zoom_hold_mode";
     private static final String KEY_MOD_MENU_MIGRATED = "mod_menu_migrated";
+    private static final String KEY_DEFAULT_MODS_APPLIED = "default_mods_applied";
     private static final String KEY_MOD_MENU_OPACITY = "mod_menu_opacity";
     private static final int DEFAULT_OVERLAY_BUTTON_SIZE = 56;
     private static final int DEFAULT_OVERLAY_BUTTON_OPACITY = 100;
@@ -40,6 +41,7 @@ public class InbuiltModManager {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         addedMods = new HashSet<>(prefs.getStringSet(KEY_ADDED_MODS, new HashSet<>()));
         migrateModMenu();
+        applyDefaultMods();
     }
 
     private void migrateModMenu() {
@@ -47,6 +49,19 @@ public class InbuiltModManager {
             addedMods.add(ModIds.MOD_MENU);
             savePrefs();
             prefs.edit().putBoolean(KEY_MOD_MENU_MIGRATED, true).apply();
+        }
+    }
+
+    private void applyDefaultMods() {
+        if (!prefs.getBoolean(KEY_DEFAULT_MODS_APPLIED, false)) {
+            addedMods.add(ModIds.MOD_MENU);
+            addedMods.add(ModIds.QUICK_DROP);
+            addedMods.add(ModIds.CAMERA_PERSPECTIVE);
+            addedMods.add(ModIds.TOGGLE_HUD);
+            addedMods.add(ModIds.AUTO_SPRINT);
+            addedMods.add(ModIds.FPS_DISPLAY);
+            savePrefs();
+            prefs.edit().putBoolean(KEY_DEFAULT_MODS_APPLIED, true).apply();
         }
     }
 

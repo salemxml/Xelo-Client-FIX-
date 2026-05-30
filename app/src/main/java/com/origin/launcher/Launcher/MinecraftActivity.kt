@@ -184,6 +184,14 @@ class MinecraftActivity : MainActivity() {
     
     override fun tick() {
         super.tick()
+        if (!overlaysStarted) {
+            overlaysStarted = true
+            overlayHandler.postDelayed({
+                if (!isFinishing && !isDestroyed) {
+                    startInbuiltModServices()
+                }
+            }, 1000)
+        }
         overlayManager?.tick()
     }
 
