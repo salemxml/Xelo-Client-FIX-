@@ -36,9 +36,9 @@ jobs:
           fi
 
           if [ ! -d "$CPP_DIR/libHttpClient/.git" ] && [ ! -f "$CPP_DIR/libHttpClient/.git" ]; then
-            echo "Cloning libHttpClient..."
+            echo "Cloning libHttpClient with submodules..."
             rm -rf "$CPP_DIR/libHttpClient"
-            git clone --depth=1 https://github.com/microsoft/libHttpClient.git "$CPP_DIR/libHttpClient"
+            git clone --recurse-submodules --depth=1 https://github.com/microsoft/libHttpClient.git "$CPP_DIR/libHttpClient"
           else
             echo "libHttpClient already present."
           fi
