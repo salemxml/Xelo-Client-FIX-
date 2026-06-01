@@ -148,6 +148,7 @@ public class MinecraftLauncher {
 
                 if (shouldLoadMaesdk(version)) {
                     java.util.Set<String> excludeLibs = new java.util.HashSet<>();
+                    excludeLibs.add("minecraftpe"); // loaded in MinecraftActivity.onCreate()
                     if (shouldLoadHttpClient(version)) {
                         excludeLibs.add("c++_shared");
                         excludeLibs.add("HttpClient.Android");
@@ -162,7 +163,7 @@ public class MinecraftLauncher {
                     }
                     throwIfRequiredLibMissing(gameManager.loadLibrary("fmod"), "libfmod.so");
                     throwIfRequiredLibMissing(gameManager.loadLibrary("MediaDecoders_Android"), "libMediaDecoders_Android.so");
-                    throwIfRequiredLibMissing(gameManager.loadLibrary("minecraftpe"), "libminecraftpe.so");
+                    // minecraftpe loaded in MinecraftActivity.onCreate() to avoid native crash in launcher process
                     gameManager.loadLibrary("mtbinloader2"); // optional
                 }
 
