@@ -54,8 +54,8 @@ class LauncherApplication : Application() {
             if (!modsDir.exists()) modsDir.mkdirs()
             Log.d("LauncherApplication", "Mods path: ${modsDir.absolutePath}")
             nativeSetupRuntime(modsDir.absolutePath)
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (t: Throwable) {
+            Log.w("LauncherApplication", "xelo_init load failed: ${t.message}")
         }
     }
 

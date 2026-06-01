@@ -238,43 +238,45 @@ class GamePackageManager private constructor(private val context: Context, priva
     }
 
     private fun createAssetManager(): AssetManager {
-        val assets = AssetManager::class.java.newInstance()
-        val addAssetPathMethod = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
+        if (version == null || version.isInstalled) {
+            Log.d(TAG, "Using packageContext.assets for installed version")
+            return packageContext.assets
+        }
 
         val paths = mutableListOf<String>()
-
-        if (version != null && !version.isInstalled) {
-            val baseApk = File(applicationInfo.sourceDir)
-            if (baseApk.exists()) {
-                paths.add(applicationInfo.sourceDir)
-            } else {
-                Log.w(TAG, "Base APK for assets not found: ${applicationInfo.sourceDir}")
-            }
-            applicationInfo.splitSourceDirs?.forEach {
-                if (File(it).exists()) {
-                    paths.add(it)
-                    Log.d(TAG, "Adding split APK for assets: $it")
-                } else {
-                    Log.w(TAG, "Split APK for assets not found: $it")
-                }
-            }
+        val baseApk = File(applicationInfo.sourceDir)
+        if (baseApk.exists()) {
+            paths.add(applicationInfo.sourceDir)
         } else {
-            paths.add(packageContext.packageResourcePath)
-            val splitPath = packageContext.packageResourcePath.replace("base.apk", "split_install_pack.apk")
-            if (File(splitPath).exists()) paths.add(splitPath)
+            Log.w(TAG, "Base APK for assets not found: ${applicationInfo.sourceDir}")
         }
-
+        applicationInfo.splitSourceDirs?.forEach {
+            if (File(it).exists()) {
+                paths.add(it)
+                Log.d(TAG, "Adding split APK for assets: $it")
+            } else {
+                Log.w(TAG, "Split APK for assets not found: $it")
+            }
+        }
         paths.add(context.packageResourcePath)
 
-        paths.forEach { path ->
-            try {
-                addAssetPathMethod.invoke(assets, path)
-                Log.d(TAG, "Added asset path: $path")
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to add asset path $path: ${e.message}")
+        return try {
+            @Suppress("DEPRECATION")
+            val assets = AssetManager::class.java.getDeclaredConstructor().newInstance()
+            val addAssetPath = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
+            paths.forEach { path ->
+                try {
+                    addAssetPath.invoke(assets, path)
+                    Log.d(TAG, "Added asset path: $path")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to add asset path $path: ${e.message}")
+                }
             }
+            assets
+        } catch (t: Throwable) {
+            Log.w(TAG, "Hidden AssetManager API failed, falling back to packageContext.assets: ${t.message}")
+            packageContext.assets
         }
-        return assets
     }
 
     private fun setupSecurityProvider() {
@@ -346,8 +348,14 @@ class GamePackageManager private constructor(private val context: Context, priva
         @JvmStatic
         fun getInstance(context: Context, version: GameVersion? = null): GamePackageManager {
             return synchronized(this) {
-                GamePackageManager(context.applicationContext, version).also { instance = it }
+                instance ?: GamePackageManager(context.applicationContext, version)
+                    .also { instance = it }
             }
+        }
+
+        @JvmStatic
+        fun clearInstance() {
+            synchronized(this) { instance = null }
         }
 
         fun isInitialized() = instance != null

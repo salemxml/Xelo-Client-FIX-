@@ -149,6 +149,7 @@ class MinecraftActivity : MainActivity() {
         overlaysStarted = false
         MinecraftActivityState.onDestroyed()
         stopInbuiltModServices()
+        GamePackageManager.clearInstance()
         super.onDestroy()
 
         val intent = Intent(applicationContext, com.origin.launcher.activity.MainActivity::class.java)
