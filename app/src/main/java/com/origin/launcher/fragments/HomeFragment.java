@@ -278,6 +278,16 @@ public class HomeFragment extends BaseThemedFragment {
         versionManager = VersionManager.get(requireContext());
         versionManager.loadAllVersions();
         minecraftLauncher = new MinecraftLauncher(requireContext());
+        minecraftLauncher.setLaunchErrorListener(errorMessage -> {
+            requireActivity().runOnUiThread(() -> {
+                if (listener != null) {
+                    listener.setText("Launch error:\n" + errorMessage);
+                }
+                if (mbl2_button != null) {
+                    mbl2_button.setEnabled(true);
+                }
+            });
+        });
     }
 
     private void checkResourcepack() {

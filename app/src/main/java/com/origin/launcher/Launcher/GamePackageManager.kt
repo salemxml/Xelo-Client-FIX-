@@ -283,6 +283,15 @@ class GamePackageManager private constructor(private val context: Context, priva
         }
         if (missing.isNotEmpty()) {
             Log.w(TAG, "Missing required libraries in $dir: ${missing.joinToString()}")
+            val suggestion = buildString {
+                append("The following required libraries could not be extracted:\n\n")
+                missing.forEach { append("  • $it\n") }
+                append("\nSuggested fixes:\n")
+                append("  1. Reinstall Minecraft from the Play Store\n")
+                append("  2. Clear cache for both Minecraft and this app\n")
+                append("  3. Ensure sufficient storage space is available")
+            }
+            throw MissingLibrariesException(missing, suggestion)
         } else {
             Log.i(TAG, "All required libraries verified in $dir")
         }
@@ -290,6 +299,13 @@ class GamePackageManager private constructor(private val context: Context, priva
             Log.i(TAG, "Optional libraries found: ${presentOptional.joinToString()}")
         }
     }
+
+    class MissingLibrariesException(
+        val missingLibs: List<String>,
+        val suggestion: String
+    ) : RuntimeException(
+        "Required libraries missing: ${missingLibs.joinToString()}\n\n$suggestion"
+    )
 
     private fun logFileOperation(action: String, lib: String, extra: String? = null, e: Exception? = null) {
         val message = buildString {
@@ -375,7 +391,12 @@ class GamePackageManager private constructor(private val context: Context, priva
         }
     }
 
+    private val requiredLibNames: Set<String> by lazy {
+        requiredLibs.map { it.removePrefix("lib").removeSuffix(".so") }.toSet()
+    }
+
     fun loadAllLibraries(excludeLibs: Set<String> = emptySet()) {
+        val failedRequired = mutableListOf<String>()
         allExtractLibs.forEach { lib ->
             val libName = lib.removePrefix("lib").removeSuffix(".so")
             if (excludeLibs.contains(libName) || excludeLibs.contains(lib)) {
@@ -384,9 +405,24 @@ class GamePackageManager private constructor(private val context: Context, priva
             }
             if (!loadLibrary(libName)) {
                 Log.w(TAG, "Could not load library: $libName")
+                if (requiredLibNames.contains(libName)) {
+                    failedRequired.add(lib)
+                }
             }
         }
+        if (failedRequired.isNotEmpty()) {
+            throw LibraryLoadException(failedRequired)
+        }
     }
+
+    class LibraryLoadException(val failedLibs: List<String>) : RuntimeException(buildString {
+        append("Failed to load required libraries:\n\n")
+        failedLibs.forEach { append("  \u2022 $it\n") }
+        append("\nSuggested fixes:\n")
+        append("  1. Reinstall Minecraft from the Play Store\n")
+        append("  2. Clear cache for both Minecraft and this app\n")
+        append("  3. Ensure the device supports the required CPU architecture")
+    })
 
     fun getAssets(): AssetManager = assetManager
 

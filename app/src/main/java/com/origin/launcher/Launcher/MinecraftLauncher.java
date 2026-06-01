@@ -1,12 +1,12 @@
 package com.origin.launcher.Launcher;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
-import android.widget.Toast;
 
 import com.origin.launcher.versions.GameVersion;
 import com.origin.launcher.utils.FeatureSettings;
@@ -23,9 +23,18 @@ public class MinecraftLauncher {
     private GamePackageManager gameManager;
     public static final String MC_PACKAGE_NAME = "com.mojang.minecraftpe";
     private LoadingDialog loadingDialog;
+    private LaunchErrorListener launchErrorListener;
+
+    public interface LaunchErrorListener {
+        void onLaunchError(String errorMessage);
+    }
 
     public MinecraftLauncher(Context context) {
         this.context = context;
+    }
+
+    public void setLaunchErrorListener(LaunchErrorListener listener) {
+        this.launchErrorListener = listener;
     }
 
     public static String abiToSystemLibDir(String abi) {
@@ -129,7 +138,7 @@ public class MinecraftLauncher {
                 sourceIntent.putExtra("MINECRAFT_VERSION", version.versionCode);
                 sourceIntent.putExtra("MINECRAFT_VERSION_DIR", version.directoryName);
                 if (shouldLoadHttpClient(version)) {
-                    gameManager.loadLibrary("c++_shared");
+                    throwIfRequiredLibMissing(gameManager.loadLibrary("c++_shared"), "libc++_shared.so");
                     if (gameManager.loadLibrary("HttpClient.Android")) {
                         Log.d(TAG, "Loaded Minecraft's libHttpClient.Android.so");
                     } else {
@@ -143,18 +152,18 @@ public class MinecraftLauncher {
                         excludeLibs.add("c++_shared");
                         excludeLibs.add("HttpClient.Android");
                     }
-if (!shouldLoadPlayFab(version)) {
+                    if (!shouldLoadPlayFab(version)) {
                         excludeLibs.add("PlayFabMultiplayer");
                     }
                     gameManager.loadAllLibraries(excludeLibs);
                 } else {
                     if (!shouldLoadHttpClient(version)) {
-                        gameManager.loadLibrary("c++_shared");
+                        throwIfRequiredLibMissing(gameManager.loadLibrary("c++_shared"), "libc++_shared.so");
                     }
-                    gameManager.loadLibrary("fmod");
-                    gameManager.loadLibrary("MediaDecoders_Android");
-                    gameManager.loadLibrary("minecraftpe");
-                    gameManager.loadLibrary("mtbinloader2");
+                    throwIfRequiredLibMissing(gameManager.loadLibrary("fmod"), "libfmod.so");
+                    throwIfRequiredLibMissing(gameManager.loadLibrary("MediaDecoders_Android"), "libMediaDecoders_Android.so");
+                    throwIfRequiredLibMissing(gameManager.loadLibrary("minecraftpe"), "libminecraftpe.so");
+                    gameManager.loadLibrary("mtbinloader2"); // optional
                 }
 
                 activity.runOnUiThread(() -> {
@@ -165,7 +174,7 @@ if (!shouldLoadPlayFab(version)) {
                 Log.e(TAG, "Failed to launch Minecraft activity: " + e.getMessage(), e);
                 activity.runOnUiThread(() -> {
                     dismissLoading();
-                    Toast.makeText(context, "Failed to launch: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    showLaunchErrorOnUi("Failed to launch Minecraft activity: " + e.getMessage());
                 });
             }
         }).start();
@@ -218,6 +227,18 @@ private boolean shouldLoadPlayFab(GameVersion version) {
         }
     }
 
+    private static void throwIfRequiredLibMissing(boolean loaded, String libName) {
+        if (!loaded) {
+            throw new RuntimeException(
+                "Failed to load required library: " + libName +
+                "\n\nSuggested fixes:" +
+                "\n  1. Reinstall Minecraft from the Play Store" +
+                "\n  2. Clear cache for both Minecraft and this app" +
+                "\n  3. Ensure sufficient storage space is available"
+            );
+        }
+    }
+
     private void dismissLoading() {
         try {
             if (loadingDialog != null && loadingDialog.isShowing()) {
@@ -230,9 +251,20 @@ private boolean shouldLoadPlayFab(GameVersion version) {
     }
 
     private void showLaunchErrorOnUi(String message) {
+        if (launchErrorListener != null) {
+            launchErrorListener.onLaunchError(message);
+        }
         Activity activity = (Activity) context;
-        activity.runOnUiThread(() -> Toast.makeText(
-                activity, "Failed to launch Minecraft: " + message, Toast.LENGTH_LONG).show()
-        );
+        activity.runOnUiThread(() -> {
+            try {
+                new AlertDialog.Builder(activity)
+                        .setTitle("Game Failed to Start")
+                        .setMessage(message)
+                        .setPositiveButton("OK", null)
+                        .show();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to show error dialog: " + e.getMessage());
+            }
+        });
     }
 }
