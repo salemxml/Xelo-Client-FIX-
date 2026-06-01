@@ -108,13 +108,69 @@ class GamePackageManager private constructor(private val context: Context, priva
         } ?: (Build.SUPPORTED_ABIS.firstOrNull() ?: "armeabi-v7a")
     }
 
+    private fun getApkTimestamp(): Long {
+        val primaryApk = if (version != null && !version.isInstalled) {
+            File(applicationInfo.sourceDir)
+        } else {
+            File(packageContext.applicationInfo.sourceDir)
+        }
+        return if (primaryApk.exists()) primaryApk.lastModified() else 0L
+    }
+
+    private fun readStoredTimestamp(dir: File): Long {
+        val f = File(dir, TIMESTAMP_FILE)
+        return if (f.exists()) f.readText().trim().toLongOrNull() ?: 0L else 0L
+    }
+
+    private fun writeStoredTimestamp(dir: File, timestamp: Long) {
+        try {
+            File(dir, TIMESTAMP_FILE).writeText(timestamp.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write APK timestamp: ${e.message}")
+        }
+    }
+
+    private fun clearExtractedLibs(dir: File) {
+        allExtractLibs.forEach { lib ->
+            val f = File(dir, lib)
+            if (f.exists()) {
+                if (f.delete()) {
+                    Log.i(TAG, "Deleted stale library: $lib")
+                } else {
+                    Log.w(TAG, "Failed to delete stale library: $lib")
+                }
+            }
+        }
+    }
+
+    private fun isManagedOutputDir(dir: File): Boolean {
+        val cacheDirPath = context.cacheDir.canonicalPath
+        return try {
+            dir.canonicalPath.startsWith(cacheDirPath)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun extractLibraries() {
         val outputDir = File(nativeLibDir)
         if (!outputDir.exists()) {
             outputDir.mkdirs()
         }
 
-        if (version != null && !version.isInstalled) {
+        val isNonInstalled = version != null && !version.isInstalled
+        val isManagedDir = isNonInstalled || isManagedOutputDir(outputDir)
+
+        if (isManagedDir) {
+            val apkTimestamp = getApkTimestamp()
+            val storedTimestamp = readStoredTimestamp(outputDir)
+            if (apkTimestamp > 0L && apkTimestamp != storedTimestamp) {
+                Log.i(TAG, "APK changed (stored=$storedTimestamp, current=$apkTimestamp), clearing stale libraries in $outputDir")
+                clearExtractedLibs(outputDir)
+            }
+        }
+
+        if (isNonInstalled) {
             val apkPaths = mutableListOf<String>()
             val baseApk = File(applicationInfo.sourceDir)
             if (baseApk.exists()) {
@@ -148,6 +204,13 @@ class GamePackageManager private constructor(private val context: Context, priva
             apkPaths.forEach { extractFromApk(it, outputDir, getDeviceAbi()) }
         }
         verifyLibraries(outputDir)
+
+        if (isManagedDir) {
+            val apkTimestamp = getApkTimestamp()
+            if (apkTimestamp > 0L) {
+                writeStoredTimestamp(outputDir, apkTimestamp)
+            }
+        }
     }
 
     private fun copyFromNativeDir(sourceDir: String, destDir: File) {
@@ -341,6 +404,7 @@ class GamePackageManager private constructor(private val context: Context, priva
 
     companion object {
         private const val TAG = "GamePackageManager"
+        private const val TIMESTAMP_FILE = ".apk_timestamp"
 
         @Volatile
         private var instance: GamePackageManager? = null
