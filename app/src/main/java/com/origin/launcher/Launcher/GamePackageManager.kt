@@ -152,6 +152,27 @@ class GamePackageManager private constructor(private val context: Context, priva
         }
     }
 
+    private fun writePendingMarker(dir: File) {
+        try {
+            File(dir, PENDING_FILE).writeText("pending")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write extraction pending marker: ${e.message}")
+        }
+    }
+
+    private fun clearPendingMarker(dir: File) {
+        try {
+            val f = File(dir, PENDING_FILE)
+            if (f.exists()) f.delete()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to clear extraction pending marker: ${e.message}")
+        }
+    }
+
+    private fun hasPendingMarker(dir: File): Boolean {
+        return File(dir, PENDING_FILE).exists()
+    }
+
     private fun extractLibraries() {
         val outputDir = File(nativeLibDir)
         if (!outputDir.exists()) {
@@ -164,10 +185,15 @@ class GamePackageManager private constructor(private val context: Context, priva
         if (isManagedDir) {
             val apkTimestamp = getApkTimestamp()
             val storedTimestamp = readStoredTimestamp(outputDir)
-            if (apkTimestamp > 0L && apkTimestamp != storedTimestamp) {
+            val pendingInterrupted = hasPendingMarker(outputDir)
+            if (pendingInterrupted) {
+                Log.w(TAG, "Previous extraction was interrupted (pending marker found), clearing and re-extracting in $outputDir")
+                clearExtractedLibs(outputDir)
+            } else if (apkTimestamp > 0L && apkTimestamp != storedTimestamp) {
                 Log.i(TAG, "APK changed (stored=$storedTimestamp, current=$apkTimestamp), clearing stale libraries in $outputDir")
                 clearExtractedLibs(outputDir)
             }
+            writePendingMarker(outputDir)
         }
 
         if (isNonInstalled) {
@@ -210,6 +236,7 @@ class GamePackageManager private constructor(private val context: Context, priva
             if (apkTimestamp > 0L) {
                 writeStoredTimestamp(outputDir, apkTimestamp)
             }
+            clearPendingMarker(outputDir)
         }
     }
 
@@ -441,6 +468,7 @@ class GamePackageManager private constructor(private val context: Context, priva
     companion object {
         private const val TAG = "GamePackageManager"
         private const val TIMESTAMP_FILE = ".apk_timestamp"
+        private const val PENDING_FILE = ".apk_extraction_pending"
 
         @Volatile
         private var instance: GamePackageManager? = null
